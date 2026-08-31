@@ -1,0 +1,27 @@
+{
+  "name": "remote-ai-mcp-server",
+  "version": "0.1.0",
+  "description": "Local Coding Agent MCP Server — tunnel-accessible coding agent for your local machine",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "audit-log": "node dist/cli/audit.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.0",
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.19.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
