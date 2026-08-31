@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { getAuditStore } from './audit.js';
 import { getOAuthStore } from './oauth/store.js';
 import { createOAuthRouter, resolveBaseUrl } from './oauth/routes.js';
+import { createOpenApiRouter } from './openapi.js';
 import { checkKernelConfinement } from './security.js';
 
 import { registerFilesystemReadTools } from './tools/filesystem-read.js';
@@ -58,12 +59,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── OAuth 2.1 routes (public) ─────────────────────────────────────────────
+// ─── OAuth 2.1 & ChatGPT OpenAPI routes (public) ─────────────────────────────
 app.use(createOAuthRouter());
+app.use(createOpenApiRouter());
 
 // ─── Auth middleware: validate OAuth Bearer token ─────────────────────────────
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
-  const publicPaths = ['/health', '/oauth/', '/.well-known/'];
+  const publicPaths = ['/health', '/oauth/', '/.well-known/', '/openapi.json'];
   if (publicPaths.some(p => req.path.startsWith(p))) {
     next();
     return;
@@ -126,7 +128,7 @@ app.get('/audit', (req, res) => {
   res.json({ entries, count: entries.length });
 });
 
-// ─── MCP endpoint (Streamable HTTP, stateless) ───────────────────────────────
+// ─── MCP endpoint (Streamable HTTP, stateless for Claude / MCP clients) ─────
 app.post('/mcp', async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -146,10 +148,11 @@ app.listen(PORT, BIND_ADDRESS, () => {
   const line = '\u2550'.repeat(52);
   console.log([
     '\u2554' + line + '\u2557',
-    `${b} ${pad('remote-ai MCP Server v0.1.0')} ${b}`,
+    `${b} ${pad('remote-ai MCP & ChatGPT REST Server v0.1.0')} ${b}`,
     '\u2560' + line + '\u2563',
     `${b} ${pad(`Listening:  http://${BIND_ADDRESS}:${PORT}`)} ${b}`,
     `${b} ${pad('MCP:        POST /mcp')} ${b}`,
+    `${b} ${pad('OpenAPI:    GET  /openapi.json (ChatGPT)')} ${b}`,
     `${b} ${pad('OAuth:      GET  /oauth/authorize')} ${b}`,
     `${b} ${pad('Token:      POST /oauth/token')} ${b}`,
     `${b} ${pad('Discovery:  GET  /.well-known/oauth-authorization-server')} ${b}`,

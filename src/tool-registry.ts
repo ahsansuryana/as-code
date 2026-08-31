@@ -6,14 +6,19 @@ export interface RegisterToolOptions {
   isWrite?: boolean;
 }
 
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  schema: ZodRawShape;
+  zodObject: ZodObject<ZodRawShape>;
+  handler: (args: any) => Promise<any>;
+  isWrite: boolean;
+}
+
+export const registeredTools = new Map<string, ToolDefinition>();
+
 /**
- * Helper to register tools with McpServer respecting MCP_TOOL_PROFILE.
- *
- * Profiles:
- * - full: exposes all tools.
- * - read-only: excludes all tools marked isWrite: true at registration time.
- * - compat-readonly-all: exposes all tools, but appends readOnlyHint annotations.
- *   WARNING: compat-readonly-all IS NOT A SECURE MODE. Destructive tools remain callable!
+ * Helper to register tools with McpServer respecting MCP_TOOL_PROFILE and saving to REST/OpenAPI registry.
  */
 export function registerProfileTool<TShape extends ZodRawShape>(
   server: McpServer,
@@ -27,15 +32,24 @@ export function registerProfileTool<TShape extends ZodRawShape>(
   const isWrite = options?.isWrite ?? false;
 
   if (profile === 'read-only' && isWrite) {
-    // Completely omit destructive tools from tool listing when in read-only mode
     return;
   }
 
   let finalDescription = description;
   if (profile === 'compat-readonly-all' && isWrite) {
-    // WARNING: compat-readonly-all IS NOT A SECURE MODE. Destructive tools are still exposed and callable!
     finalDescription = `[readOnlyHint: true] ${description}`;
   }
+
+  const zodObj = z.object(schema);
+
+  registeredTools.set(name, {
+    name,
+    description: finalDescription,
+    schema,
+    zodObject: zodObj,
+    handler: handler as any,
+    isWrite,
+  });
 
   server.tool(name, finalDescription, schema, handler as any);
 }
