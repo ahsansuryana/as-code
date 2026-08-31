@@ -2,6 +2,7 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import crypto from 'crypto';
 import path from 'path';
 import { config } from './config.js';
+import { getGitEnvironment, isGitCommand } from './git-auth.js';
 
 export interface ExecutionSession {
   id: string;
@@ -51,11 +52,12 @@ export function createExecutionSession(
 
   // Spawn child process detached for process group kill capability
   const isWin = process.platform === 'win32';
+  const baseEnv = { ...process.env, PATH: process.env.PATH ?? '/usr/bin:/bin' };
   const proc = spawn(command, [], {
     shell: true,
     cwd,
     detached: !isWin, // Detached process group on Unix
-    env: { ...process.env, PATH: process.env.PATH ?? '/usr/bin:/bin' },
+    env: isGitCommand(command) ? getGitEnvironment(baseEnv) : baseEnv,
   });
 
   const session: ExecutionSession = {

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { getOAuthStore } from './store.js';
 import { config } from '../config.js';
+import { verifyTokenHash } from '../token-auth.js';
 
 export function resolveBaseUrl(req: Request): string {
   // If explicitly configured to a real domain, use it
@@ -120,7 +121,7 @@ export function createOAuthRouter(): Router {
   router.post('/oauth/consent', (req: Request, res: Response) => {
     const { client_id, redirect_uri, code_challenge, state, password } = req.body as Record<string, string>;
 
-    if (!password || password !== config.BEARER_TOKEN) {
+    if (!verifyTokenHash(password, config.AUTH_SECRET)) {
       const client = getOAuthStore().getClient(client_id, redirect_uri);
       res.status(401).send(consentPage({
         clientName: client.client_name,
@@ -128,7 +129,7 @@ export function createOAuthRouter(): Router {
         redirectUri: redirect_uri,
         codeChallenge: code_challenge,
         state: state ?? '',
-        error: 'Incorrect password. Please enter the BEARER_TOKEN set in your server .env file.',
+        error: 'Incorrect password. Please enter your server\'s bearer secret (from `npm run generate-token`).',
       }));
       return;
     }
@@ -303,14 +304,14 @@ function consentPage(opts: ConsentPageOptions): string {
       <input type="hidden" name="state"          value="${escapeHtml(opts.state)}">
 
       <label for="password">Server password</label>
-      <input type="password" id="password" name="password" placeholder="Enter your BEARER_TOKEN" autofocus>
+      <input type="password" id="password" name="password" placeholder="Enter your server's bearer secret" autofocus>
 
       ${errorHtml}
 
       <button type="submit">Authorize access</button>
     </form>
 
-    <p class="hint">This is your private MCP server. Enter the password from your .env file.</p>
+    <p class="hint">This is your private MCP server. Enter the raw bearer secret from 'npm run generate-token'.</p>
   </div>
 </body>
 </html>`;

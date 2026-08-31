@@ -125,7 +125,7 @@ export function generateOpenApiSpec(baseUrl: string): any {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'Token',
-          description: 'Use the BEARER_TOKEN configured in your server .env file or OAuth access token.',
+          description: 'Use your server\'s bearer secret (the raw value produced by `npm run generate-token`, verified against BEARER_TOKEN_HASH) or an OAuth access token.',
         },
       },
     },

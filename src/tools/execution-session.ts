@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { resolveSafePath, validateCommandAllowlist } from '../security.js';
 import { withAudit } from '../audit.js';
 import { config } from '../config.js';
+import { getGitEnvironment, isGitCommand } from '../git-auth.js';
 import { registerProfileTool } from '../tool-registry.js';
 import {
   createExecutionSession,
@@ -307,10 +308,11 @@ function runShellCommand(command: string, cwd: string, timeoutMs: number): Promi
     let stdout = '';
     let stderr = '';
 
+    const baseEnv = { ...process.env, PATH: process.env.PATH ?? '/usr/bin:/bin' };
     const proc = spawn(command, [], {
       shell: true,
       cwd,
-      env: { ...process.env, PATH: process.env.PATH ?? '/usr/bin:/bin' },
+      env: isGitCommand(command) ? getGitEnvironment(baseEnv) : baseEnv,
     });
 
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
@@ -336,7 +338,12 @@ function runShellCommand(command: string, cwd: string, timeoutMs: number): Promi
 
 function runGitCommand(cmd: string, cwd: string): string {
   try {
-    return execSync(cmd, { cwd, encoding: 'utf-8', timeout: 15_000 }).trimEnd();
+    return execSync(cmd, {
+      cwd,
+      encoding: 'utf-8',
+      timeout: 15_000,
+      env: getGitEnvironment({ ...process.env, PATH: process.env.PATH ?? '/usr/bin:/bin' }),
+    }).trimEnd();
   } catch (err: unknown) {
     const e = err as { message?: string; stderr?: Buffer };
     throw new Error(`Git command failed: ${e.stderr?.toString() ?? e.message}`);

@@ -90,12 +90,8 @@ export function validateWebFetchUrl(url: string): void {
   }
 }
 
-export function verifyBearerToken(authHeader: string | undefined): void {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Missing or malformed Authorization header');
-  }
-  const token = authHeader.slice('Bearer '.length).trim();
-  if (token !== config.BEARER_TOKEN) {
-    throw new Error('Invalid Bearer token');
-  }
-}
+// NOTE: request-level Bearer/OAuth verification lives in index.ts's
+// requireAuth middleware (using verifyTokenHash from token-auth.ts), which
+// also checks OAuth-issued tokens. This module previously had its own
+// unused, plaintext-comparing verifyBearerToken() — removed to avoid two
+// diverging implementations of the same check.

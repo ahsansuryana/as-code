@@ -18,6 +18,11 @@ const SENSITIVE_KEY_REGEX = /^(token|password|secret|api_key|apikey|authorizatio
 // Match common API keys, tokens, JWTs, and long hex/base64 strings without spaces (>20 chars)
 const SENSITIVE_STRING_PATTERNS = [
   /ghp_[a-zA-Z0-9]{36}/g,
+  /github_pat_[a-zA-Z0-9_]{20,}/g,
+  /gho_[a-zA-Z0-9]{20,}/g,
+  /ghu_[a-zA-Z0-9]{20,}/g,
+  /ghs_[a-zA-Z0-9]{20,}/g,
+  /ghr_[a-zA-Z0-9]{20,}/g,
   /sk-[a-zA-Z0-9]{32,}/g,
   /Bearer\s+[a-zA-Z0-9._~+/-]+=*/gi,
   /eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}/g,

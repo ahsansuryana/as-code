@@ -2,7 +2,7 @@
 
 > **Version:** 0.1.0 · **Status:** Enhanced MVP with OAuth 2.1 & Advanced Execution Harness
 
-A production-grade Model Context Protocol (MCP) server that exposes your local workspace to web AI agents (e.g. Claude.ai) via Cloudflare Tunnel, complete with OAuth 2.1 authentication, session-based background execution, tool profile scoping, sensitive data redaction, and symlink protection.
+A production-grade Model Context Protocol (MCP) server that exposes your local workspace to web AI agents (Claude.ai via Streamable HTTP at `/mcp`, ChatGPT via legacy SSE at `/sse`) through a Cloudflare Tunnel, complete with OAuth 2.1 authentication, session-based background execution, tool profile scoping, sensitive data redaction, and symlink protection.
 
 ---
 
@@ -50,6 +50,7 @@ A production-grade Model Context Protocol (MCP) server that exposes your local w
 | Security Feature | Implementation Details |
 |------------------|------------------------|
 | **OAuth 2.1 Auth** | RFC 8414 (Discovery), RFC 9728 (Protected Resource), RFC 7591 (DCR), PKCE (`S256`). |
+| **Hashed Bearer Secret** | `.env` stores only a salted `scrypt` hash (`BEARER_TOKEN_HASH`), not the raw secret. Verification re-hashes the supplied value and compares in constant time (`crypto.timingSafeEqual`) — a leaked `.env` does not hand out a usable credential. Generate one with `npm run generate-token`. |
 | **Path Confinement** | `resolveSafePath()` checks `PROJECT_ROOT` boundaries and resolves physical symlinks via `fs.realpathSync` to block symlink escape attempts. |
 | **Default Ignore Filter** | `list_dir`, `glob_search`, and `grep_search` automatically filter `.git`, `node_modules`, `dist`, `build`, `.venv`, `__pycache__`, etc. |
 | **Redacted Audit Log** | SQLite `audit_log` automatically masks passwords, API keys, Bearer tokens, JWTs, and long secrets in inputs and command outputs with `[REDACTED]`. |
@@ -65,8 +66,24 @@ A production-grade Model Context Protocol (MCP) server that exposes your local w
 ```env
 PORT=3000
 PUBLIC_URL=https://your-tunnel-name.trycloudflare.com
-BEARER_TOKEN=your-secret-32-byte-token
+
+# Generate with: npm run generate-token
+# Only the hash is stored — the raw token is shown once, in your terminal,
+# and is never written to any file.
+BEARER_TOKEN_HASH=scrypt$<salt>$<hash>
+
 PROJECT_ROOT=F:/path/to/project
+
+# Git HTTPS credentials (optional)
+# Used only for Git child processes via GIT_ASKPASS.
+# Never put the PAT directly in a Git remote URL.
+# If one is set, both must be set.
+GIT_USER=your-github-username
+GIT_PAT=github_pat_xxxxxxxxxxxxxxxxxxxx
+
+# Optional Git commit identity (applied only to Git processes)
+GIT_COMMIT_NAME=Your Name
+GIT_COMMIT_EMAIL=you@example.com
 
 # Tool Profiles: full | read-only | compat-readonly-all
 MCP_TOOL_PROFILE=full
@@ -87,6 +104,19 @@ BIND_ADDRESS=127.0.0.1
 
 ---
 
+## 🔐 Git HTTPS Authentication
+
+Set `GIT_USER` and `GIT_PAT` in `.env` to authenticate HTTPS Git operations from the MCP server. The PAT is injected only into Git child processes through `GIT_ASKPASS`; it is not embedded in remote URLs or Git config. Because the PAT is intentionally available to Git processes, Git hooks run as part of an authenticated command can also inherit it. Do not print these environment variables from commands or commit `.env`.
+
+For example:
+
+```env
+GIT_USER=your-github-username
+GIT_PAT=github_pat_xxxxxxxxxxxxxxxxxxxx
+```
+
+Both credential variables must be provided together. `GIT_COMMIT_NAME` and `GIT_COMMIT_EMAIL` are optional and, when set together, provide the author/committer identity for Git commands without changing global Git config. SSH remotes (`git@github.com:...`) continue to use their normal SSH configuration.
+
 ## 🚀 Quickstart
 
 1. **Install dependencies & build:**
@@ -98,7 +128,12 @@ BIND_ADDRESS=127.0.0.1
 2. **Configure `.env`:**
    ```bash
    cp .env.example .env
+   npm run generate-token
    ```
+   Copy the printed `BEARER_TOKEN_HASH=...` line into `.env`. Save the raw token
+   it prints above that line somewhere safe (password manager) — you'll paste
+   it into the OAuth consent page or use it as a direct Bearer header. It is
+   never written to disk.
 
 3. **Start MCP Server & Cloudflare Tunnel:**
    ```bash
@@ -109,4 +144,23 @@ BIND_ADDRESS=127.0.0.1
 4. **Connect from Claude.ai:**
    - Go to Claude.ai → Settings → Integrations → Add Custom Connector.
    - Enter `https://<your-tunnel>.trycloudflare.com/mcp`.
-   - Complete the browser OAuth login using your `BEARER_TOKEN` password.
+   - Complete the browser OAuth login using the raw token from step 2 as the password.
+
+5. **Connect from ChatGPT:**
+   - Go to ChatGPT → Settings → Connectors → Advanced → Create/Add a custom connector (MCP).
+   - Enter `https://<your-tunnel>.trycloudflare.com/sse` as the server URL (note the `/sse` path — ChatGPT's MCP connectors use the legacy SSE transport, not `/mcp`).
+   - Choose OAuth as the authentication method. ChatGPT will auto-discover `/.well-known/oauth-authorization-server`, register itself via `/oauth/register` (RFC 7591), and redirect you to the `/oauth/authorize` consent page.
+   - Enter the raw token from step 2 on the consent page to finish authorizing.
+   - Each SSE session gets its own isolated `McpServer` instance server-side, so Claude (`/mcp`) and ChatGPT (`/sse`) can stay connected at the same time without cross-talk.
+
+## 🔑 Rotating or migrating the bearer secret
+
+Run `npm run generate-token` again at any time to mint a new secret, then
+replace `BEARER_TOKEN_HASH` in `.env` with the newly printed value and restart
+the server. This invalidates the old raw secret immediately (it's no longer
+stored anywhere to compare against). OAuth access tokens already issued to
+Claude/ChatGPT are unaffected — they're separate, randomly generated tokens
+tracked in the SQLite OAuth store — so rotating the bearer secret does not log
+out clients that already completed the OAuth flow; it only changes the
+password needed for *new* OAuth logins or direct `Authorization: Bearer`
+access.
