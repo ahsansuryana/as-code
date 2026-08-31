@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: remote-ai-mcp
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      # In Docker, bind to 0.0.0.0 so host port mapping works
+      - BIND_ADDRESS=0.0.0.0
+      - PROJECT_ROOT=/workspace
+    volumes:
+      # Preserve SQLite audit database across container restarts
+      - ./data:/app/data
+      # Mount host project root into container /workspace
+      # Specify HOST_PROJECT_PATH in .env or environment (defaults to host workspace folder)
+      - ${HOST_PROJECT_PATH:-.}:/workspace
