@@ -11,7 +11,7 @@ export function registerFilesystemWriteTools(server: McpServer): void {
   registerProfileTool(
     server,
     'write_file',
-    'Create or overwrite a file. Automatically backs up existing files before overwriting.',
+    'Create or overwrite a file. Edits the file in place — no backup is created.',
     {
       path: z.string().describe('File path (absolute or relative to PROJECT_ROOT)'),
       content: z.string().describe('Full file content to write'),
@@ -25,12 +25,7 @@ export function registerFilesystemWriteTools(server: McpServer): void {
           fs.mkdirSync(parentDir, { recursive: true });
         }
 
-        let backupPath: string | null = null;
-        if (fs.existsSync(filePath)) {
-          const ts = new Date().toISOString().replace(/[:.]/g, '-');
-          backupPath = `${filePath}.bak.${ts}`;
-          fs.copyFileSync(filePath, backupPath);
-        }
+        const existed = fs.existsSync(filePath);
 
         fs.writeFileSync(filePath, content, 'utf-8');
         markFileAsRead(filePath);
@@ -40,7 +35,7 @@ export function registerFilesystemWriteTools(server: McpServer): void {
             type: 'text' as const,
             text: [
               `✅ Written: ${filePath}`,
-              backupPath ? `📦 Backup: ${backupPath}` : '(new file, no backup needed)',
+              existed ? '(overwritten)' : '(new file)',
               `Bytes written: ${Buffer.byteLength(content, 'utf-8')}`,
             ].join('\n'),
           }],
@@ -86,10 +81,6 @@ export function registerFilesystemWriteTools(server: McpServer): void {
           );
         }
 
-        const ts = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupPath = `${filePath}.bak.${ts}`;
-        fs.copyFileSync(filePath, backupPath);
-
         const updated = replace_all
           ? original.split(old_string).join(new_string)
           : original.replace(old_string, new_string);
@@ -102,7 +93,6 @@ export function registerFilesystemWriteTools(server: McpServer): void {
             text: [
               `✅ Edited: ${filePath}`,
               `Replaced ${replace_all ? occurrences : 1} occurrence(s)`,
-              `📦 Backup: ${backupPath}`,
             ].join('\n'),
           }],
         };
