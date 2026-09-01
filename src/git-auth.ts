@@ -1,16 +1,21 @@
-import path from 'path';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
+
+const GIT_ASKPASS_PATH = fileURLToPath(new URL('../scripts/git-askpass.mjs', import.meta.url));
 
 /**
  * Returns environment variables needed for authenticated HTTPS Git commands.
  * Credentials are only injected into processes that are explicitly running Git.
+ * The askpass helper is an executable script with a Node shebang; Git expects
+ * GIT_ASKPASS to name the program, not a shell command plus arguments. The path
+ * is resolved relative to this module so compiled and source execution both work.
  */
 export function getGitEnvironment(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   if (!config.GIT_USER || !config.GIT_PAT) return baseEnv;
 
   return {
     ...baseEnv,
-    GIT_ASKPASS: `${process.execPath} "${path.resolve(process.cwd(), 'scripts/git-askpass.mjs')}"`,
+    GIT_ASKPASS: GIT_ASKPASS_PATH,
     GIT_TERMINAL_PROMPT: '0',
     GIT_USER: config.GIT_USER,
     GIT_PAT: config.GIT_PAT,

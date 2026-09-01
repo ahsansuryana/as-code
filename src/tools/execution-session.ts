@@ -309,10 +309,13 @@ function runShellCommand(command: string, cwd: string, timeoutMs: number): Promi
     let stderr = '';
 
     const baseEnv = { ...process.env, PATH: process.env.PATH ?? '/usr/bin:/bin' };
+    // Pass Git credentials through the shell environment. Git's askpass helper
+    // is inherited by Git even when the command is executed via `sh -c`.
+    const env = isGitCommand(command) ? getGitEnvironment(baseEnv) : baseEnv;
     const proc = spawn(command, [], {
       shell: true,
       cwd,
-      env: isGitCommand(command) ? getGitEnvironment(baseEnv) : baseEnv,
+      env,
     });
 
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });

@@ -1,0 +1,22 @@
+[Unit]
+Description=remote-ai MCP & ChatGPT REST Server
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/media/externalFile/project/as-code
+EnvironmentFile=/media/externalFile/project/as-code/.env
+ExecStartPre=-/media/externalFile/project/as-code/scripts/ghcr-login.sh
+ExecStart=/usr/bin/env node dist/index.js
+Restart=always
+RestartSec=5
+User=root
+
+# Journal logging (view with: journalctl -u remote-ai-mcp -f)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=remote-ai-mcp
+
+[Install]
+WantedBy=multi-user.target

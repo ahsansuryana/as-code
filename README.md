@@ -106,16 +106,18 @@ BIND_ADDRESS=127.0.0.1
 
 ## 🔐 Git HTTPS Authentication
 
-Set `GIT_USER` and `GIT_PAT` in `.env` to authenticate HTTPS Git operations from the MCP server. The PAT is injected only into Git child processes through `GIT_ASKPASS`; it is not embedded in remote URLs or Git config. Because the PAT is intentionally available to Git processes, Git hooks run as part of an authenticated command can also inherit it. Do not print these environment variables from commands or commit `.env`.
+Set `GIT_USER` and `GIT_PAT` in `.env` to authenticate HTTPS Git operations from the MCP server. The PAT is injected only into Git child processes through an executable `GIT_ASKPASS` helper; it is not embedded in remote URLs or Git config. The helper path is resolved from the installed application location so it works from both source execution and the compiled Docker image. Because the PAT is intentionally available to Git processes, Git hooks run as part of an authenticated command can also inherit it. Do not print these environment variables from commands or commit `.env`.
 
 For example:
 
 ```env
 GIT_USER=your-github-username
 GIT_PAT=github_pat_xxxxxxxxxxxxxxxxxxxx
+GIT_COMMIT_NAME=Your Name
+GIT_COMMIT_EMAIL=you@example.com
 ```
 
-Both credential variables must be provided together. `GIT_COMMIT_NAME` and `GIT_COMMIT_EMAIL` are optional and, when set together, provide the author/committer identity for Git commands without changing global Git config. SSH remotes (`git@github.com:...`) continue to use their normal SSH configuration.
+Both credential variables must be provided together. `GIT_COMMIT_NAME` and `GIT_COMMIT_EMAIL` are optional and, when set together, provide the author/committer identity for Git commands without changing global Git config. All Git commands executed through the MCP shell inherit the authentication environment, including `git push` and `git pull`. SSH remotes (`git@github.com:...`) continue to use their normal SSH configuration.
 
 ## 🚀 Quickstart
 
