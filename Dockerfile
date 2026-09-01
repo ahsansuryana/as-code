@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     build-essential \
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -20,6 +21,8 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+# Git invokes GIT_ASKPASS directly, so preserve its executable bit.
+RUN chmod +x scripts/git-askpass.mjs
 
 # Compile TypeScript
 RUN npm run build

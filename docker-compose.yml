@@ -21,3 +21,8 @@ services:
       # Mount host project root into container /workspace
       # Specify HOST_PROJECT_PATH in .env or environment (defaults to host workspace folder)
       - ${HOST_PROJECT_PATH:-.}:/workspace
+      # Bind the host Docker socket so the container's `docker` CLI controls
+      # the host's Docker daemon (docker-outside-of-docker). The container
+      # runs as root (no USER directive in Dockerfile), so no extra group
+      # permissions are needed to access the socket.
+      - /var/run/docker.sock:/var/run/docker.sock
