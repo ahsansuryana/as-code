@@ -1,6 +1,7 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { config } from './config.js';
 import { getAuditStore } from './audit.js';
 import { getOAuthStore } from './oauth/store.js';
@@ -71,8 +72,16 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
     return;
   }
 
+  // Accept token from Authorization header or access_token query param (for SSE EventSource)
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice('Bearer '.length).trim();
+  } else if (typeof req.query['access_token'] === 'string') {
+    token = req.query['access_token'];
+  }
+
+  if (!token) {
     const baseUrl = resolveBaseUrl(req);
     res.setHeader(
       'WWW-Authenticate',
@@ -84,8 +93,6 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
     });
     return;
   }
-
-  const token = authHeader.slice('Bearer '.length).trim();
 
   const oauthValid = getOAuthStore().validateToken(token);
   const staticValid = token === config.BEARER_TOKEN;
@@ -128,7 +135,7 @@ app.get('/audit', (req, res) => {
   res.json({ entries, count: entries.length });
 });
 
-// ─── MCP endpoint (Streamable HTTP, stateless for Claude / MCP clients) ─────
+// ─── MCP Streamable HTTP endpoint (stateless) ───────────────────────────────
 app.post('/mcp', async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -138,6 +145,36 @@ app.post('/mcp', async (req, res) => {
 
   await mcpServer.connect(transport);
   await transport.handleRequest(req, res, req.body);
+});
+
+// ─── MCP SSE Transport endpoints (GET /sse + POST /message) ──────────────────
+const sseTransports = new Map<string, SSEServerTransport>();
+
+app.get('/sse', async (req, res) => {
+  const transport = new SSEServerTransport('/message', res);
+  sseTransports.set(transport.sessionId, transport);
+
+  req.on('close', () => {
+    sseTransports.delete(transport.sessionId);
+  });
+
+  await mcpServer.connect(transport);
+});
+
+app.post('/message', async (req, res) => {
+  const sessionId = req.query['sessionId'] as string;
+  if (!sessionId) {
+    res.status(400).json({ error: 'missing_session_id', message: 'sessionId query parameter is required' });
+    return;
+  }
+
+  const transport = sseTransports.get(sessionId);
+  if (!transport) {
+    res.status(404).json({ error: 'session_not_found', message: `No active SSE session found for ID "${sessionId}"` });
+    return;
+  }
+
+  await transport.handlePostMessage(req, res);
 });
 
 // ─── Start ───────────────────────────────────────────────────────────────────
@@ -151,7 +188,9 @@ app.listen(PORT, BIND_ADDRESS, () => {
     `${b} ${pad('remote-ai MCP & ChatGPT REST Server v0.1.0')} ${b}`,
     '\u2560' + line + '\u2563',
     `${b} ${pad(`Listening:  http://${BIND_ADDRESS}:${PORT}`)} ${b}`,
-    `${b} ${pad('MCP:        POST /mcp')} ${b}`,
+    `${b} ${pad('MCP (POST): POST /mcp')} ${b}`,
+    `${b} ${pad('MCP (SSE):  GET  /sse')} ${b}`,
+    `${b} ${pad('MCP (Msg):  POST /message?sessionId=...')} ${b}`,
     `${b} ${pad('OpenAPI:    GET  /openapi.json (ChatGPT)')} ${b}`,
     `${b} ${pad('OAuth:      GET  /oauth/authorize')} ${b}`,
     `${b} ${pad('Token:      POST /oauth/token')} ${b}`,
